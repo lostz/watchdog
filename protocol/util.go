@@ -1,9 +1,11 @@
 package protocol
 
 import (
+	"encoding/hex"
 	"io"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -106,4 +108,27 @@ func WritePacket(c net.Conn, p Packet) error {
 		p.AddSequenceID()
 		return nil
 	}
+}
+
+func StringToPacket(value string) (data []byte) {
+	lines := strings.Split(value, "\n")
+	data = make([]byte, 0, 16*len(lines))
+	var values []string
+
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		if len(line) < 51 {
+			values = strings.Split(line, " ")
+		} else {
+			values = strings.Split(line[:51], " ")
+		}
+		for _, val := range values {
+			i, _ := hex.DecodeString(val)
+			data = append(data, i...)
+		}
+	}
+
+	return data
 }
