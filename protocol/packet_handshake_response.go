@@ -42,6 +42,28 @@ func (p *PacketHandshakeResponse) FromPacket(data []byte) {
 		pos += len(db) + 1
 		p.database = db
 	}
+	if p.capability&CLIENT_PLUGIN_AUTH > 0 {
+		authPluginName := string(data[pos : pos+bytes.IndexByte(data[pos:], 0)])
+		pos += len(authPluginName) + 1
+		p.authPluginName = authPluginName
+		fmt.Println(authPluginName)
+	}
+	if p.capability&CLIENT_CONNECT_ATTRS > 0 {
+		keyValueLen := int(data[pos])
+		fmt.Println(keyValueLen)
+		pos++
+		for pos <= keyValueLen {
+			fmt.Println(pos)
+			fmt.Println(data[pos])
+			lengthn := int(data[pos])
+			fmt.Println(lengthn)
+			fmt.Println(string(data[pos+1 : pos+1+lengthn]))
+			pos += lengthn + 1
+			fmt.Println(pos)
+		}
+
+	}
+
 	fmt.Println(pos)
 
 }
