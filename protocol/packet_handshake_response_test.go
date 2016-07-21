@@ -20,7 +20,5 @@ e8 82 e5 b3 f4 1a 97 75    6b c8 be db 9f 80 6d 79    .......uk.....my
 `)
 
 func Test_HandShakeResponse(t *testing.T) {
-	p := &PacketHandshakeResponse{}
-	p.FromPacket(data)
 
 }

@@ -6,6 +6,7 @@ type Packet struct {
 	netConn    net.Conn
 	buf        buffer
 	sequenceID uint8
+	capability uint32
 }
 
 func NewPacket(netConn net.Conn) *Packet {

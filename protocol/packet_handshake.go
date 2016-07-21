@@ -12,7 +12,6 @@ type PacketHandshake struct {
 	serverVersion   string
 	connectionID    uint32
 	authPluginData  string
-	capability      uint32
 	characterSet    byte
 	status          uint16
 	authPluginName  string
@@ -27,10 +26,10 @@ func (p PacketHandshake) ToPacket() error {
 	data = append(data, byte(p.connectionID), byte(p.connectionID>>8), byte(p.connectionID>>16), byte(p.connectionID>>24))
 	data = append(data, p.authPluginData[0:8]...)
 	data = append(data, 0x00)
-	data = append(data, byte(p.capability), byte(p.capability>>8))
+	data = append(data, byte(p.Packet.capability), byte(p.Packet.capability>>8))
 	data = append(data, uint8(p.characterSet))
 	data = append(data, byte(p.status), byte(p.status>>8))
-	data = append(data, byte(p.capability>>16), byte(p.capability>>24))
+	data = append(data, byte(p.Packet.capability>>16), byte(p.Packet.capability>>24))
 	data = append(data, 0x15)
 	data = append(data, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	data = append(data, p.authPluginData[8:]...)
@@ -46,7 +45,7 @@ func NewPacketHandShake(connectionID uint32, salt string, packet *Packet) *Packe
 	p.protocolVersion = MinProtocolVersion
 	p.serverVersion = ServerVersion
 	p.authPluginData = salt
-	p.capability = DefaultCapability
+	p.Packet.capability = DefaultCapability
 	p.characterSet = DefaultCollationID
 	p.status = SERVER_STATUS_AUTOCOMMIT
 	p.authPluginName = AuthPluginName

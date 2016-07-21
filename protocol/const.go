@@ -56,6 +56,13 @@ const (
 )
 
 const (
+	OKHeader          byte = 0x00
+	ErrHeader         byte = 0xff
+	EofHeader         byte = 0xfe
+	LocalInFileHeader byte = 0xfb
+)
+
+const (
 	comQuit byte = iota + 1
 	comInitDB
 	comQuery

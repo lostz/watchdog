@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"errors"
 	"net"
 	"sync/atomic"
 
@@ -13,6 +15,7 @@ var baseConnID uint32 = 1212
 // Server ...
 type Server struct {
 	listener net.Listener
+	userList map[string]string
 	running  bool
 }
 
@@ -49,14 +52,33 @@ func (s *Server) writeInitialHandshake(salt string, packet *protocol.Packet) err
 	return err
 }
 
-func (s *Server) readHandshakeResponse(c net.Conn) error {
+func (s *Server) readHandshakeResponse(c net.Conn, salt string) error {
 	response := &protocol.PacketHandshakeResponse{}
 	err := response.FromPacket()
 	if err != nil {
+		packetErr := protocol.NewPacketErr(err.Error())
+		pErr := packetErr.ToPacket()
+		if pErr != nil {
+			logrus.Printf("write packetErr %s", err.Error())
+			return pErr
+		}
 		return err
 	}
-
-	return nil
+	username := response.Username()
+	if passwd, find := s.userList[username]; find {
+		checkAuth := protocol.CalcPassword([]byte(salt), []byte(passwd))
+		if bytes.Equal([]byte(response.AuthResponse()), checkAuth) {
+			return nil
+		}
+		logrus.Printf("readHandshakeResponseau, checkAuth:%s,client_user:%s", checkAuth, username)
+		packetErr := protocol.NewDefaultPacketErr(protocol.ER_ACCESS_DENIED_ERROR, username, c.RemoteAddr().String(), "Yes")
+		pErr := packetErr.ToPacket()
+		if pErr != nil {
+			logrus.Printf("write packetErr %s", err.Error())
+			return pErr
+		}
+	}
+	return errors.New("auth error")
 }
 
 //Run ...
