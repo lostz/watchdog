@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"io"
 	"math/rand"
-	"net"
 	"strings"
 	"time"
 )
@@ -95,19 +94,6 @@ func HasFlag(value uint64, flag uint64) bool {
 
 func GetNulTerminatedStringSize(value string) uint64 {
 	return uint64(len(value)) + 1
-}
-
-func WritePacket(c net.Conn, p Packet) error {
-	data := p.CompressPacket()
-	n, err := c.Write(data)
-	if err != nil {
-		return ErrBadConn
-	} else if n != len(data) {
-		return ErrBadConn
-	} else {
-		p.AddSequenceID()
-		return nil
-	}
 }
 
 func StringToPacket(value string) (data []byte) {

@@ -3,12 +3,12 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 )
 
 // PacketHandshakeResponse 41
 type PacketHandshakeResponse struct {
-	sequenceID     uint8
+	packet         *Packet
+	packetSize     int
 	capability     uint32
 	maxPacketSize  uint32
 	characterSet   byte
@@ -16,13 +16,15 @@ type PacketHandshakeResponse struct {
 	authResponse   string
 	database       string
 	authPluginName string
+	attributes     map[string]string
 }
 
-func (p *PacketHandshakeResponse) FromPacket(data []byte) {
-	length := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
-	fmt.Println(length)
-	p.sequenceID = uint8(data[3])
-	data = data[4:]
+func (p *PacketHandshakeResponse) FromPacket() error {
+	data, err := p.packet.readPacket()
+	if err != nil {
+		return err
+	}
+	p.attributes = make(map[string]string)
 	pos := 0
 	p.capability = binary.LittleEndian.Uint32(data[:4])
 	pos += 4
@@ -46,24 +48,27 @@ func (p *PacketHandshakeResponse) FromPacket(data []byte) {
 		authPluginName := string(data[pos : pos+bytes.IndexByte(data[pos:], 0)])
 		pos += len(authPluginName) + 1
 		p.authPluginName = authPluginName
-		fmt.Println(authPluginName)
 	}
 	if p.capability&CLIENT_CONNECT_ATTRS > 0 {
 		keyValueLen := int(data[pos])
-		fmt.Println(keyValueLen)
 		pos++
-		for pos <= keyValueLen {
-			fmt.Println(pos)
-			fmt.Println(data[pos])
-			lengthn := int(data[pos])
-			fmt.Println(lengthn)
-			fmt.Println(string(data[pos+1 : pos+1+lengthn]))
-			pos += lengthn + 1
-			fmt.Println(pos)
+		for keyValueLen > 0 {
+			key, _, n, err := LengthEnodedString(data[pos:])
+			if err != nil {
+				return err
+			}
+			pos += n
+			p.attributes[string(key)] = ""
+			keyValueLen -= n
+			value, _, n, err := LengthEnodedString(data[pos:])
+			if err != nil {
+				return err
+			}
+			pos += n
+			p.attributes[string(key)] = string(value)
+			keyValueLen -= n
 		}
-
 	}
-
-	fmt.Println(pos)
+	return nil
 
 }

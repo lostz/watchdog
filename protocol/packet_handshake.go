@@ -1,7 +1,5 @@
 package protocol
 
-import "math"
-
 //DefaultCapability ...
 var DefaultCapability uint32 = CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG |
 	CLIENT_CONNECT_WITH_DB | CLIENT_PROTOCOL_41 |
@@ -9,7 +7,7 @@ var DefaultCapability uint32 = CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG |
 
 // PacketHandshake  V10
 type PacketHandshake struct {
-	sequenceID      uint8
+	Packet          *Packet
 	protocolVersion byte
 	serverVersion   string
 	connectionID    uint32
@@ -20,38 +18,12 @@ type PacketHandshake struct {
 	authPluginName  string
 }
 
-func (p PacketHandshake) SequenceID() uint8 {
-	return p.sequenceID
-}
-
-func (p PacketHandshake) GetPacketSize() (size uint64) {
-	size++
-	size += GetNulTerminatedStringSize(p.serverVersion)
-	size += 4
-	size += 8
-	size++
-	size += 2
-	size++
-	size += 2
-	size += 2
-	size++
-	size += 10
-	if HasFlag(uint64(p.capability), uint64(CLIENT_SECURE_CONNECTION)) {
-		size += uint64(math.Max(13, float64(len(p.authPluginData)-8)))
-	}
-	if HasFlag(uint64(p.capability), uint64(CLIENT_PLUGIN_AUTH)) {
-		size += GetNulTerminatedStringSize(p.authPluginName)
-	}
-	return size
-}
-
-func (p PacketHandshake) ToPacket() (data []byte) {
-	size := p.GetPacketSize()
-	data = make([]byte, 0, size+4)
-	data = append(data, PutLengthEncodedInt(uint64(size))...)
-	data = append(data, p.sequenceID)
-	data = append(data, p.protocolVersion)
+//ToPacket PacketHandshake struct to []byte
+func (p PacketHandshake) ToPacket() error {
+	data := make([]byte, 4, 128)
+	data = append(data, 10)
 	data = append(data, p.serverVersion...)
+	data = append(data, p.protocolVersion)
 	data = append(data, byte(p.connectionID), byte(p.connectionID>>8), byte(p.connectionID>>16), byte(p.connectionID>>24))
 	data = append(data, p.authPluginData[0:8]...)
 	data = append(data, 0x00)
@@ -63,26 +35,13 @@ func (p PacketHandshake) ToPacket() (data []byte) {
 	data = append(data, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	data = append(data, p.authPluginData[8:]...)
 	data = append(data, 0)
-	return data
-}
-
-func (p PacketHandshake) CompressPacket() []byte {
-	data := p.ToPacket()
-	return CompressPacket(p.sequenceID, data)
-}
-
-func (p PacketHandshake) AddSequenceID() {
-	p.sequenceID++
-}
-
-func (p PacketHandshake) CleanSequenceID() {
-	p.sequenceID = 0
+	return p.Packet.writePacket(data)
 }
 
 // NewPacketHandShake return default handShake
-func NewPacketHandShake(connectionID uint32, salt string) *PacketHandshake {
+func NewPacketHandShake(connectionID uint32, salt string, packet *Packet) *PacketHandshake {
 	p := &PacketHandshake{}
-	p.sequenceID = 0
+	p.Packet = packet
 	p.connectionID = connectionID
 	p.protocolVersion = MinProtocolVersion
 	p.serverVersion = ServerVersion

@@ -1,42 +1,110 @@
 package protocol
 
-import (
-	"bytes"
-	"compress/flate"
-)
+import "net"
 
-type Packet interface {
-	SequenceID() uint8
-	CompressPacket() []byte
-	AddSequenceID()
-	CleanSequenceID()
+type Packet struct {
+	netConn    net.Conn
+	buf        buffer
+	sequenceID uint8
 }
 
-func CompressPacket(sequenceId uint8, input []byte) (output []byte) {
-	var compressedPayloadLength int
-	var compressedPayload []byte
-	var uncompressedPayloadLength int
-	uncompressedPayloadLength = len(input)
-	if uncompressedPayloadLength < MIN_COMPRESS_LENGTH {
-		compressedPayloadLength = uncompressedPayloadLength
-		uncompressedPayloadLength = 0
-		compressedPayload = input
-	} else {
-		var b bytes.Buffer
-		w, _ := flate.NewWriter(&b, 9)
-		w.Write(input)
-		w.Close()
-		compressedPayload = b.Bytes()
-		compressedPayloadLength = len(compressedPayload)
+func NewPacket(netConn net.Conn) *Packet {
+	return &Packet{
+		netConn: netConn,
 	}
-	output = make([]byte, 0, compressedPayloadLength+7)
-	output = append(output, byte(compressedPayloadLength))
-	output = append(output, byte(compressedPayloadLength>>8))
-	output = append(output, byte(compressedPayloadLength>>16))
-	output = append(output, sequenceId)
-	output = append(output, byte(uncompressedPayloadLength))
-	output = append(output, byte(uncompressedPayloadLength>>8))
-	output = append(output, byte(uncompressedPayloadLength>>16))
-	output = append(output, compressedPayload...)
-	return output
+
+}
+
+func (p *Packet) readPacket() ([]byte, error) {
+	var payload []byte
+	for {
+		// Read packet header
+		data, err := p.buf.readNext(4)
+		if err != nil {
+			p.Close()
+			return nil, ErrBadConn
+		}
+
+		// Packet Length [24 bit]
+		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+
+		if pktLen < 1 {
+			p.Close()
+			return nil, ErrBadConn
+		}
+
+		// Check Packet Sync [8 bit]
+		if data[3] != p.sequenceID {
+			if data[3] > p.sequenceID {
+				return nil, ErrMalformPacket
+			}
+			return nil, ErrMalformPacket
+		}
+		p.sequenceID++
+
+		// Read packet body [pktLen bytes]
+		data, err = p.buf.readNext(pktLen)
+		if err != nil {
+			p.Close()
+			return nil, ErrBadConn
+		}
+
+		isLastPacket := (pktLen < MaxPayloadLen)
+
+		// Zero allocations for non-splitting packets
+		if isLastPacket && payload == nil {
+			return data, nil
+		}
+
+		payload = append(payload, data...)
+
+		if isLastPacket {
+			return payload, nil
+		}
+	}
+}
+
+func (p *Packet) writePacket(data []byte) error {
+	pktLen := len(data) - 4
+	for {
+		var size int
+		if pktLen >= MaxPayloadLen {
+			data[0] = 0xff
+			data[1] = 0xff
+			data[2] = 0xff
+			size = MaxPayloadLen
+		} else {
+			data[0] = byte(pktLen)
+			data[1] = byte(pktLen >> 8)
+			data[2] = byte(pktLen >> 16)
+			size = pktLen
+		}
+		data[3] = p.sequenceID
+
+		n, err := p.netConn.Write(data[:4+size])
+		if err == nil && n == 4+size {
+			p.sequenceID++
+			if size != MaxPayloadLen {
+				return nil
+			}
+			pktLen -= size
+			data = data[size:]
+			continue
+		}
+
+		return ErrBadConn
+	}
+}
+
+func (p *Packet) Close() (err error) {
+	// Makes Close idempotent
+	if p.netConn != nil {
+		q := &PacketComQuit{p}
+		err := q.WritePacket()
+		p.netConn.Close()
+		return err
+	}
+	p.netConn = nil
+
+	return
 }

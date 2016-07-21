@@ -8,7 +8,7 @@ import (
 	"github.com/lostz/watchdog/protocol"
 )
 
-var baseConnId uint32 = 1212
+var baseConnID uint32 = 1212
 
 // Server ...
 type Server struct {
@@ -33,24 +33,30 @@ func (s *Server) onConn(c net.Conn) {
 
 func (s *Server) handShake(c net.Conn) error {
 	salt := protocol.RandomBuf(20)
-	err := s.writeInitialHandshake(c, string(salt))
+	packet := protocol.NewPacket(c)
+	err := s.writeInitialHandshake(string(salt), packet)
 	if err != nil {
 		logrus.Printf("Server handshake %s ", err.Error())
 		return err
-
 	}
 	return nil
 
 }
 
-func (s *Server) writeInitialHandshake(c net.Conn, salt string) error {
-	handshake := protocol.NewPacketHandShake(atomic.AddUint32(&baseConnId, 1), salt)
-	err := protocol.WritePacket(c, handshake)
+func (s *Server) writeInitialHandshake(salt string, packet *protocol.Packet) error {
+	handshake := protocol.NewPacketHandShake(atomic.AddUint32(&baseConnID, 1), salt, packet)
+	err := handshake.ToPacket()
 	return err
 }
 
 func (s *Server) readHandshakeResponse(c net.Conn) error {
+	response := &protocol.PacketHandshakeResponse{}
+	err := response.FromPacket()
+	if err != nil {
+		return err
+	}
 
+	return nil
 }
 
 //Run ...

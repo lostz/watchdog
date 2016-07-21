@@ -55,4 +55,33 @@ const (
 	CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
 )
 
-const MIN_COMPRESS_LENGTH = 50
+const (
+	comQuit byte = iota + 1
+	comInitDB
+	comQuery
+	comFieldList
+	comCreateDB
+	comDropDB
+	comRefresh
+	comShutdown
+	comStatistics
+	comProcessInfo
+	comConnect
+	comProcessKill
+	comDebug
+	comPing
+	comTime
+	comDelayedInsert
+	comChangeUser
+	comBinlogDump
+	comTableDump
+	comConnectOut
+	comRegisterSlave
+	comStmtPrepare
+	comStmtExecute
+	comStmtSendLongData
+	comStmtClose
+	comStmtReset
+	comSetOption
+	comStmtFetch
+)
