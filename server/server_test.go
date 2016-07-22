@@ -18,6 +18,8 @@ func TestServer(t *testing.T) {
 		log.Println(err.Error())
 		return
 	}
+	userList := map[string]string{"root": "test"}
+	s.userList = userList
 	s.listener = listener
 	log.Println("running")
 	s.Run()

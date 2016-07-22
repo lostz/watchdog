@@ -11,9 +11,14 @@ type Packet struct {
 
 func NewPacket(netConn net.Conn) *Packet {
 	return &Packet{
+		buf:     newBuffer(netConn),
 		netConn: netConn,
 	}
 
+}
+
+func (p *Packet) Conn() net.Conn {
+	return p.netConn
 }
 
 func (p *Packet) readPacket() ([]byte, error) {

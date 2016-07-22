@@ -10,8 +10,9 @@ type PacketErr struct {
 	errorMessage string
 }
 
-func NewDefaultPacketErr(errCode uint16, args ...interface{}) *PacketErr {
+func NewDefaultPacketErr(packet *Packet, errCode uint16, args ...interface{}) *PacketErr {
 	p := &PacketErr{
+		Packet:  packet,
 		errCode: errCode,
 	}
 	if format, ok := MySQLErrName[errCode]; ok {
@@ -22,8 +23,9 @@ func NewDefaultPacketErr(errCode uint16, args ...interface{}) *PacketErr {
 	return p
 }
 
-func NewPacketErr(errMessage string) *PacketErr {
+func NewPacketErr(packet *Packet, errMessage string) *PacketErr {
 	return &PacketErr{
+		Packet:       packet,
 		errCode:      0,
 		errorMessage: errMessage,
 	}

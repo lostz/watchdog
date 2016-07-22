@@ -39,8 +39,12 @@ func (s *Server) handShake(c net.Conn) error {
 	packet := protocol.NewPacket(c)
 	err := s.writeInitialHandshake(string(salt), packet)
 	if err != nil {
-		logrus.Printf("Server handshake %s ", err.Error())
+		logrus.Printf("server handshake %s ", err.Error())
 		return err
+	}
+	err = s.readHandshakeResponse(salt, packet)
+	if err != nil {
+		logrus.Printf("server readHandshakeResponse %s", err.Error())
 	}
 	return nil
 
@@ -52,26 +56,28 @@ func (s *Server) writeInitialHandshake(salt string, packet *protocol.Packet) err
 	return err
 }
 
-func (s *Server) readHandshakeResponse(c net.Conn, salt string) error {
-	response := &protocol.PacketHandshakeResponse{}
+func (s *Server) readHandshakeResponse(salt []byte, packet *protocol.Packet) error {
+	response := &protocol.PacketHandshakeResponse{Packet: packet}
 	err := response.FromPacket()
 	if err != nil {
-		packetErr := protocol.NewPacketErr(err.Error())
+		logrus.Printf("readHandshakeResponse %s", err.Error())
+		packetErr := protocol.NewPacketErr(packet, err.Error())
 		pErr := packetErr.ToPacket()
 		if pErr != nil {
-			logrus.Printf("write packetErr %s", err.Error())
+			logrus.Printf("write packetErr %s ", err.Error())
 			return pErr
 		}
 		return err
 	}
 	username := response.Username()
 	if passwd, find := s.userList[username]; find {
-		checkAuth := protocol.CalcPassword([]byte(salt), []byte(passwd))
+		checkAuth := protocol.CalcPassword(salt, []byte(passwd))
+		logrus.Printf(response.AuthResponse())
 		if bytes.Equal([]byte(response.AuthResponse()), checkAuth) {
 			return nil
 		}
-		logrus.Printf("readHandshakeResponseau, checkAuth:%s,client_user:%s", checkAuth, username)
-		packetErr := protocol.NewDefaultPacketErr(protocol.ER_ACCESS_DENIED_ERROR, username, c.RemoteAddr().String(), "Yes")
+		logrus.Printf("readHandshakeResponseau, passwd:%s,client_user:%s", passwd, username)
+		packetErr := protocol.NewDefaultPacketErr(packet, protocol.ER_ACCESS_DENIED_ERROR, username, packet.Conn().RemoteAddr().String(), "Yes")
 		pErr := packetErr.ToPacket()
 		if pErr != nil {
 			logrus.Printf("write packetErr %s", err.Error())
