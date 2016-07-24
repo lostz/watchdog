@@ -10,7 +10,7 @@ const (
 	//ServerVersion handShake ...
 	ServerVersion string = "5.5.19-lostz-0.1"
 	//AuthPluginName handShake ...
-	AuthPluginName string = "sql_native_password"
+	AuthPluginName string = "mysql_native_password"
 	//DefaultCollationID utf8
 	DefaultCollationID uint8 = 33
 )

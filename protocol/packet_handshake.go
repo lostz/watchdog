@@ -3,12 +3,11 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 )
 
 //DefaultCapability ...
 var DefaultCapability uint32 = CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG |
-	CLIENT_CONNECT_WITH_DB | CLIENT_PROTOCOL_41 | CLIENT_PLUGIN_AUTH |
+	CLIENT_CONNECT_WITH_DB | CLIENT_PROTOCOL_41 |
 	CLIENT_TRANSACTIONS | CLIENT_SECURE_CONNECTION
 
 // PacketHandshake  V10
@@ -17,6 +16,7 @@ type PacketHandshake struct {
 	protocolVersion byte
 	serverVersion   string
 	connectionID    uint32
+	capability      uint32
 	authPluginData  string
 	characterSet    byte
 	status          uint16
@@ -32,25 +32,19 @@ func (p PacketHandshake) ToPacket() error {
 	data = append(data, byte(p.connectionID), byte(p.connectionID>>8), byte(p.connectionID>>16), byte(p.connectionID>>24))
 	data = append(data, p.authPluginData[0:8]...)
 	data = append(data, 0)
-	data = append(data, byte(p.Packet.capability), byte(p.Packet.capability>>8))
+	data = append(data, byte(p.capability), byte(p.capability>>8))
 	data = append(data, uint8(p.characterSet))
 	data = append(data, byte(p.status), byte(p.status>>8))
-	data = append(data, byte(p.Packet.capability>>16), byte(p.Packet.capability>>24))
-	data = append(data, byte(uint16(p.Packet.capability&0xFFFF)), byte(uint16(p.Packet.capability&0xFFFF))>>8)
-	if p.Packet.capability&CLIENT_PLUGIN_AUTH > 0 {
-		fmt.Println("auth")
-		data = append(data, byte(len(p.authPluginData)))
-	} else {
-		data = append(data, 0)
-	}
+	data = append(data, byte(p.capability>>16), byte(p.capability>>24))
+	data = append(data, 0x15)
 	data = append(data, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	data = append(data, p.authPluginData[8:]...)
-	if p.Packet.capability&CLIENT_PLUGIN_AUTH > 0 {
-		data = append(data, p.authPluginName...)
-	}
 	data = append(data, 0)
+	//if p.Packet.capability&CLIENT_PLUGIN_AUTH > 0 {
+	//	data = append(data, p.authPluginName...)
+	//	data = append(data, 0)
+	//}
 	return p.Packet.writePacket(data)
-	return nil
 }
 
 func (p *PacketHandshake) FromPacket(data []byte) {
@@ -65,13 +59,13 @@ func (p *PacketHandshake) FromPacket(data []byte) {
 	pos += 8
 	// (filler) always 0x00 [1 byte]
 	pos++
-	p.Packet.capability = uint32(binary.LittleEndian.Uint16(data[pos : pos+2]))
+	p.capability = uint32(binary.LittleEndian.Uint16(data[pos:pos+2]))<<8 | p.capability
 	pos += 2
 	p.characterSet = data[pos]
 	pos++
 	p.status = binary.LittleEndian.Uint16(data[pos : pos+2])
 	pos += 2
-	p.Packet.capability = uint32(binary.LittleEndian.Uint16(data[pos:pos+2]))<<16 | p.Packet.capability
+	p.capability = uint32(binary.LittleEndian.Uint16(data[pos:pos+2]))<<16 | p.capability
 	pos += 2
 	authLen := data[pos]
 	pos++
@@ -79,7 +73,7 @@ func (p *PacketHandshake) FromPacket(data []byte) {
 	auth2 := data[pos : pos+int(authLen)-8]
 	pos += int(authLen) - 8
 	p.authPluginData = string(auth1) + string(auth2)
-	if p.Packet.capability&CLIENT_PLUGIN_AUTH > 0 {
+	if p.capability&CLIENT_PLUGIN_AUTH > 0 {
 		p.authPluginName = string(data[pos : pos+bytes.IndexByte(data[pos:], 0x00)])
 	}
 
@@ -93,7 +87,7 @@ func NewPacketHandShake(connectionID uint32, salt string, packet *Packet) *Packe
 	p.protocolVersion = MinProtocolVersion
 	p.serverVersion = ServerVersion
 	p.authPluginData = salt
-	p.Packet.capability = DefaultCapability
+	p.capability = DefaultCapability
 	p.characterSet = DefaultCollationID
 	p.status = SERVER_STATUS_AUTOCOMMIT
 	p.authPluginName = AuthPluginName

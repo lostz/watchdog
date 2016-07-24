@@ -44,10 +44,8 @@ func (p *PacketErr) ToPacket() error {
 	data := make([]byte, 4, 16+len(p.errorMessage))
 	data = append(data, ErrHeader)
 	data = append(data, byte(p.errCode), byte(p.errCode>>8))
-	if p.Packet.capability&CLIENT_PROTOCOL_41 > 0 {
-		data = append(data, '#')
-		data = append(data, p.sqlState...)
-	}
+	data = append(data, '#')
+	data = append(data, p.sqlState...)
 	data = append(data, p.errorMessage...)
 	return p.Packet.writePacket(data)
 }
