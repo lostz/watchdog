@@ -24,6 +24,10 @@ func (p *Packet) CleanSequenceId() {
 	p.sequenceID = 0
 }
 
+func (p *Packet) ReadPacket() ([]byte, error) {
+	return p.readPacket()
+}
+
 func (p *Packet) readPacket() ([]byte, error) {
 	var payload []byte
 	for {

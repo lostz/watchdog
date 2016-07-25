@@ -32,7 +32,11 @@ func (s *Server) onConn(c net.Conn) {
 	if err != nil {
 		packet.Close()
 	}
-	s.writeProxyInfo(packet)
+	err = s.writeProxyInfo(packet)
+	if err != nil {
+		packet.Close()
+	}
+	s.run(packet)
 
 }
 
@@ -144,6 +148,16 @@ func (s *Server) writeProxyInfo(packet *protocol.Packet) error {
 	}
 
 	return nil
+}
+
+func (s *Server) run(packet *protocol.Packet) {
+	for {
+		data, err := packet.ReadPacket()
+		if err != nil {
+			return
+		}
+	}
+
 }
 
 //Run ...
