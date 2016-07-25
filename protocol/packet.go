@@ -20,6 +20,10 @@ func (p *Packet) Conn() net.Conn {
 	return p.netConn
 }
 
+func (p *Packet) CleanSequenceId() {
+	p.sequenceID = 0
+}
+
 func (p *Packet) readPacket() ([]byte, error) {
 	var payload []byte
 	for {
@@ -67,6 +71,10 @@ func (p *Packet) readPacket() ([]byte, error) {
 			return payload, nil
 		}
 	}
+}
+
+func (p *Packet) WritePacket(data []byte) error {
+	return p.writePacket(data)
 }
 
 func (p *Packet) writePacket(data []byte) error {

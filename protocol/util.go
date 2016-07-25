@@ -118,6 +118,13 @@ func PutLengthEncodedInt(n uint64) []byte {
 	return nil
 }
 
+func PutLengthEncodedString(b []byte) []byte {
+	data := make([]byte, 0, len(b)+9)
+	data = append(data, PutLengthEncodedInt(uint64(len(b)))...)
+	data = append(data, b...)
+	return data
+}
+
 func HasFlag(value uint64, flag uint64) bool {
 	return (value & flag) == flag
 }

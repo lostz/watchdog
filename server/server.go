@@ -28,25 +28,33 @@ func NewServer() (*Server, error) {
 
 func (s *Server) onConn(c net.Conn) {
 	logrus.Println("Accept")
-	err := s.handShake(c)
+	packet, err := s.handShake(c)
 	if err != nil {
+		packet.Close()
 	}
+	s.writeProxyInfo(packet)
 
 }
 
-func (s *Server) handShake(c net.Conn) error {
+func (s *Server) handShake(c net.Conn) (*protocol.Packet, error) {
 	salt := protocol.RandomBuf(20)
 	packet := protocol.NewPacket(c)
 	err := s.writeInitialHandshake(string(salt), packet)
 	if err != nil {
 		logrus.Printf("server handshake %s ", err.Error())
-		return err
+		return packet, err
 	}
 	err = s.readHandshakeResponse(salt, packet)
 	if err != nil {
 		logrus.Printf("server readHandshakeResponse %s", err.Error())
+		return packet, err
 	}
-	return nil
+	err = s.writeOk(packet)
+	if err != nil {
+		logrus.Printf("server handShake weireOK %s", err.Error())
+		return packet, err
+	}
+	return packet, nil
 
 }
 
@@ -72,11 +80,10 @@ func (s *Server) readHandshakeResponse(salt []byte, packet *protocol.Packet) err
 	username := response.Username()
 	if passwd, find := s.userList[username]; find {
 		checkAuth := protocol.CalcPassword(salt, []byte(passwd))
-		logrus.Printf(response.AuthResponse())
 		if bytes.Equal([]byte(response.AuthResponse()), checkAuth) {
+			logrus.Printf("readHandshakeResponse client_user:%s authOk", username)
 			return nil
 		}
-		logrus.Printf("readHandshakeResponseau, passwd:%s,client_user:%s", passwd, username)
 		packetErr := protocol.NewDefaultPacketErr(packet, protocol.ER_ACCESS_DENIED_ERROR, username, packet.Conn().RemoteAddr().String(), "Yes")
 		pErr := packetErr.ToPacket()
 		if pErr != nil {
@@ -85,6 +92,58 @@ func (s *Server) readHandshakeResponse(salt []byte, packet *protocol.Packet) err
 		}
 	}
 	return errors.New("auth error")
+}
+
+func (s *Server) writeOk(packet *protocol.Packet) error {
+	ok := protocol.NewPacketOk(packet)
+	return ok.ToPacket()
+}
+
+//Client first send select @@version_comment limit 1
+func (s *Server) writeProxyInfo(packet *protocol.Packet) error {
+	packet.CleanSequenceId()
+	packetQuery := protocol.NewPacketQuery(packet)
+	err := packetQuery.FromPacket()
+	if err != nil {
+		logrus.Errorf("read packet query %s", err.Error())
+		return err
+	}
+	packetColumnCount := protocol.NewPacketColumnCount(packet)
+	packetColumnCount.SetColumnCount(1)
+	err = packetColumnCount.ToPacket()
+	if err != nil {
+		logrus.Errorf("send  packet column count %s", err.Error())
+		return err
+	}
+	packetColumnDefinition := protocol.DefaultProxyColumnDefinition(packet)
+	err = packetColumnDefinition.ToPacket()
+	if err != nil {
+		logrus.Errorf("send packet column definition %s", err.Error())
+		return err
+	}
+	packetEOF := protocol.NewPacketEOF(packet)
+	packetEOF.SetStatus(protocol.SERVER_STATUS_AUTOCOMMIT)
+	err = packetEOF.ToPacket()
+	if err != nil {
+		logrus.Errorf("send  packet eof %s", err.Error())
+		return err
+	}
+	packetResultsetRow := protocol.NewPacketResultsetRow(packet)
+	packetResultsetRow.SetData([]byte(protocol.VersionComment))
+	err = packetResultsetRow.ToPacket()
+	if err != nil {
+		logrus.Errorf("send packet resultset row %s", err.Error())
+		return err
+	}
+	packetEOF = protocol.NewPacketEOF(packet)
+	packetEOF.SetStatus(protocol.SERVER_STATUS_AUTOCOMMIT)
+	err = packetEOF.ToPacket()
+	if err != nil {
+		logrus.Errorf("send  packet eof %s", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 //Run ...

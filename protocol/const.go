@@ -13,6 +13,8 @@ const (
 	AuthPluginName string = "mysql_native_password"
 	//DefaultCollationID utf8
 	DefaultCollationID uint8 = 33
+	//VersionComment  MariaDB Server
+	VersionComment string = "MariaDB Server"
 )
 
 const (
@@ -56,10 +58,23 @@ const (
 )
 
 const (
-	OKHeader          byte = 0x00
+	OkHeader          byte = 0x00
 	ErrHeader         byte = 0xff
-	EofHeader         byte = 0xfe
+	EOFHeader         byte = 0xfe
 	LocalInFileHeader byte = 0xfb
+)
+
+const (
+	MYSQL_TYPE_NEWDECIMAL byte = iota + 0xf6
+	MYSQL_TYPE_ENUM
+	MYSQL_TYPE_SET
+	MYSQL_TYPE_TINY_BLOB
+	MYSQL_TYPE_MEDIUM_BLOB
+	MYSQL_TYPE_LONG_BLOB
+	MYSQL_TYPE_BLOB
+	MYSQL_TYPE_VAR_STRING
+	MYSQL_TYPE_STRING
+	MYSQL_TYPE_GEOMETRY
 )
 
 const (
