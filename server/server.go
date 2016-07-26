@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/lostz/watchdog/mysql"
 	"github.com/lostz/watchdog/protocol"
 )
 
@@ -17,11 +18,29 @@ type Server struct {
 	listener net.Listener
 	userList map[string]string
 	running  bool
+	pool     *mysql.ConnPool
 }
 
 //NewServer ...
 func NewServer() (*Server, error) {
 	s := &Server{}
+	pool, err := mysql.NewConnPool(10, 30, "10.88.147.1:6004", "testdb", "testdb", "")
+	if err != nil {
+		return nil, err
+	}
+	s.userList = map[string]string{"root": "test"}
+	s.pool = pool
+	addr, err := net.ResolveTCPAddr("tcp", "0.0.0.0:3306")
+	if err != nil {
+		logrus.Errorf("%s", err.Error())
+		return nil, err
+	}
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		logrus.Errorf("%s", err.Error())
+		return nil, err
+	}
+	s.listener = listener
 	return s, nil
 
 }
@@ -29,10 +48,6 @@ func NewServer() (*Server, error) {
 func (s *Server) onConn(c net.Conn) {
 	logrus.Println("Accept")
 	packet, err := s.handShake(c)
-	if err != nil {
-		packet.Close()
-	}
-	err = s.writeProxyInfo(packet)
 	if err != nil {
 		packet.Close()
 	}
@@ -103,57 +118,30 @@ func (s *Server) writeOk(packet *protocol.Packet) error {
 	return ok.ToPacket()
 }
 
-//Client first send select @@version_comment limit 1
-func (s *Server) writeProxyInfo(packet *protocol.Packet) error {
-	packet.CleanSequenceId()
-	packetQuery := protocol.NewPacketQuery(packet)
-	err := packetQuery.FromPacket()
-	if err != nil {
-		logrus.Errorf("read packet query %s", err.Error())
-		return err
-	}
-	packetColumnCount := protocol.NewPacketColumnCount(packet)
-	packetColumnCount.SetColumnCount(1)
-	err = packetColumnCount.ToPacket()
-	if err != nil {
-		logrus.Errorf("send  packet column count %s", err.Error())
-		return err
-	}
-	packetColumnDefinition := protocol.DefaultProxyColumnDefinition(packet)
-	err = packetColumnDefinition.ToPacket()
-	if err != nil {
-		logrus.Errorf("send packet column definition %s", err.Error())
-		return err
-	}
-	packetEOF := protocol.NewPacketEOF(packet)
-	packetEOF.SetStatus(protocol.SERVER_STATUS_AUTOCOMMIT)
-	err = packetEOF.ToPacket()
-	if err != nil {
-		logrus.Errorf("send  packet eof %s", err.Error())
-		return err
-	}
-	packetResultsetRow := protocol.NewPacketResultsetRow(packet)
-	packetResultsetRow.SetData([]byte(protocol.VersionComment))
-	err = packetResultsetRow.ToPacket()
-	if err != nil {
-		logrus.Errorf("send packet resultset row %s", err.Error())
-		return err
-	}
-	packetEOF = protocol.NewPacketEOF(packet)
-	packetEOF.SetStatus(protocol.SERVER_STATUS_AUTOCOMMIT)
-	err = packetEOF.ToPacket()
-	if err != nil {
-		logrus.Errorf("send  packet eof %s", err.Error())
-		return err
-	}
-
-	return nil
-}
-
 func (s *Server) run(packet *protocol.Packet) {
+	conn, err := s.pool.Get()
+	if err != nil {
+		logrus.Errorf("get conn from pool %s", err.Error())
+		return
+	}
 	for {
 		data, err := packet.ReadPacket()
 		if err != nil {
+			return
+		}
+		err = conn.WritePacket(data)
+		if err != nil {
+			logrus.Errorf("write %s", err.Error())
+			return
+		}
+		data, err = conn.ReadPacket()
+		if err != nil {
+			logrus.Errorf("read %s", err.Error())
+			return
+		}
+		err = packet.WritePacket(data)
+		if err != nil {
+			logrus.Errorf("%s", err.Error())
 			return
 		}
 	}
